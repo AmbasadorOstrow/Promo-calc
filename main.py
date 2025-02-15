@@ -1,34 +1,44 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from itertools import permutations
+import math
 
 app = FastAPI()
 
-# Definiujemy model danych dla API
+# Konfiguracja CORS (zezwalamy na żądania z dowolnej domeny)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Można zmienić na konkretną domenę frontendu
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Model produktu
 class Product(BaseModel):
     name: str
     regular_price: float
     discount_price: float
 
-# Rabaty na najtańszy produkt w zależności od ilości produktów w koszyku
+# Rabaty na najtańszy produkt
 discounts = {2: 0.30, 3: 0.55, 4: 0.80, 5: 0.99}
 
 # Funkcja do obliczania kosztu zamówienia
 def calculate_order_price(order):
     if len(order) < 2:
-        return sum(p.discount_price for p in order)  # Bez rabatu przy 1 produkcie
+        return sum(p.discount_price for p in order)  
 
-    min_price_regular = min(p.regular_price for p in order)  # Najtańszy produkt (cena regularna)
-    discount = discounts.get(len(order), 0)  # Pobieramy rabat dla danej liczby produktów
+    min_price_regular = min(p.regular_price for p in order)
+    discount = discounts.get(len(order), 0)
 
-    total_price = sum(p.discount_price for p in order)  # Cena po kodach rabatowych
-    discount_value = min_price_regular * discount  # Rabat na najtańszy produkt
+    total_price = sum(p.discount_price for p in order)
+    discount_value = min_price_regular * discount
+    final_price = total_price - discount_value  
 
-    final_price = total_price - discount_value  # Końcowa cena po rabacie
-
-    # **NAPRAWA**: Zapobiegamy błędom JSON (NaN, inf)
-    if final_price < 0 or not isinstance(final_price, (int, float)) or final_price != final_price:
-        final_price = 0
+    # **NAPRAWA**: Zapobiegamy błędom JSON (NaN, inf, wartości ujemne)
+    if math.isnan(final_price) or math.isinf(final_price) or final_price < 0:
+        final_price = 0.0
 
     return final_price
 
@@ -37,12 +47,10 @@ def find_best_split(products):
     best_split = []
     best_total_cost = float('inf')
 
-    # Szukamy podziału na 2-4 zamówienia
     for num_orders in range(2, 5):
         for perm in permutations(products):
             split = [list(perm[i::num_orders]) for i in range(num_orders)]
 
-            # Każde zamówienie musi mieć min. 2 produkty i max. 5
             if all(2 <= len(order) <= 5 for order in split):
                 total_cost = sum(calculate_order_price(order) for order in split)
 
