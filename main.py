@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from itertools import permutations
 
@@ -17,14 +17,20 @@ discounts = {2: 0.30, 3: 0.55, 4: 0.80, 5: 0.99}
 def calculate_order_price(order):
     if len(order) < 2:
         return sum(p.discount_price for p in order)  # Bez rabatu przy 1 produkcie
-    
+
     min_price_regular = min(p.regular_price for p in order)  # Najtańszy produkt (cena regularna)
     discount = discounts.get(len(order), 0)  # Pobieramy rabat dla danej liczby produktów
-    
+
     total_price = sum(p.discount_price for p in order)  # Cena po kodach rabatowych
     discount_value = min_price_regular * discount  # Rabat na najtańszy produkt
-    
-    return total_price - discount_value  # Finalna cena po rabacie
+
+    final_price = total_price - discount_value  # Końcowa cena po rabacie
+
+    # **NAPRAWA**: Zapobiegamy błędom JSON (NaN, inf)
+    if final_price < 0 or not isinstance(final_price, (int, float)) or final_price != final_price:
+        final_price = 0
+
+    return final_price
 
 # Funkcja do znajdowania optymalnego podziału zamówień
 def find_best_split(products):
@@ -49,6 +55,9 @@ def find_best_split(products):
 # API endpoint do obliczania rabatu
 @app.post("/calculate")
 async def calculate_discount(products: list[Product]):
+    if len(products) < 2:
+        raise HTTPException(status_code=400, detail="Dodaj co najmniej 2 produkty!")
+
     best_orders, best_total_cost = find_best_split(products)
 
     result = []
