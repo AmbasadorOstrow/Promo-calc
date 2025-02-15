@@ -1,15 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from itertools import permutations
 import math
 
 app = FastAPI()
 
-# ✅ **POPRAWKA: Zezwalamy na połączenia z GitHub Pages**
+# **1️⃣ CORS Middleware – próbujemy raz jeszcze**
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Możesz tu dodać np. ["https://ambasadorostrow.github.io"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,10 +22,10 @@ class Product(BaseModel):
     regular_price: float
     discount_price: float
 
-# Rabaty na najtańszy produkt
+# Rabaty
 discounts = {2: 0.30, 3: 0.55, 4: 0.80, 5: 0.99}
 
-# Funkcja do obliczania kosztu zamówienia
+# Funkcja liczenia ceny
 def calculate_order_price(order):
     if len(order) < 2:
         return sum(p.discount_price for p in order)
@@ -36,13 +37,13 @@ def calculate_order_price(order):
     discount_value = min_price_regular * discount
     final_price = total_price - discount_value  
 
-    # **NAPRAWA**: Zapobiegamy błędom JSON (NaN, inf, wartości ujemne)
+    # **NAPRAWA:** Jeśli wynik to NaN/inf, ustawiamy 0.0
     if math.isnan(final_price) or math.isinf(final_price) or final_price < 0:
         final_price = 0.0
 
     return final_price
 
-# Funkcja do znajdowania optymalnego podziału zamówień
+# Funkcja znajdowania najlepszego podziału
 def find_best_split(products):
     best_split = []
     best_total_cost = float('inf')
@@ -50,17 +51,15 @@ def find_best_split(products):
     for num_orders in range(2, 5):
         for perm in permutations(products):
             split = [list(perm[i::num_orders]) for i in range(num_orders)]
-
             if all(2 <= len(order) <= 5 for order in split):
                 total_cost = sum(calculate_order_price(order) for order in split)
-
                 if total_cost < best_total_cost:
                     best_total_cost = total_cost
                     best_split = split
 
     return best_split, best_total_cost
 
-# API endpoint do obliczania rabatu
+# **2️⃣ Ręczne dodanie nagłówków CORS w odpowiedzi**
 @app.post("/calculate")
 async def calculate_discount(products: list[Product]):
     if len(products) < 2:
@@ -76,7 +75,8 @@ async def calculate_discount(products: list[Product]):
             "final_price": calculate_order_price(order)
         })
 
-    return {
-        "orders": result,
-        "total_price": best_total_cost
-    }
+    response = JSONResponse(content={"orders": result, "total_price": best_total_cost})
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
