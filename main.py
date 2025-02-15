@@ -7,7 +7,7 @@ import math
 
 app = FastAPI()
 
-# **1️⃣ CORS Middleware – próbujemy raz jeszcze**
+# ✅ CORS Middleware – pozwalamy na połączenia z GitHub Pages
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,7 +25,7 @@ class Product(BaseModel):
 # Rabaty
 discounts = {2: 0.30, 3: 0.55, 4: 0.80, 5: 0.99}
 
-# Funkcja liczenia ceny
+# ✅ Funkcja liczenia ceny - eliminacja `NaN` i `inf`
 def calculate_order_price(order):
     if len(order) < 2:
         return sum(p.discount_price for p in order)
@@ -37,13 +37,13 @@ def calculate_order_price(order):
     discount_value = min_price_regular * discount
     final_price = total_price - discount_value  
 
-    # **NAPRAWA:** Jeśli wynik to NaN/inf, ustawiamy 0.0
+    # 🛠️ **NAPRAWA**: Zabezpieczenie przed `NaN` i `inf`
     if math.isnan(final_price) or math.isinf(final_price) or final_price < 0:
         final_price = 0.0
 
     return final_price
 
-# Funkcja znajdowania najlepszego podziału
+# ✅ Funkcja znajdowania najlepszego podziału zamówienia
 def find_best_split(products):
     best_split = []
     best_total_cost = float('inf')
@@ -53,13 +53,18 @@ def find_best_split(products):
             split = [list(perm[i::num_orders]) for i in range(num_orders)]
             if all(2 <= len(order) <= 5 for order in split):
                 total_cost = sum(calculate_order_price(order) for order in split)
-                if total_cost < best_total_cost:
-                    best_total_cost = total_cost
-                    best_split = split
+                if not math.isinf(total_cost) and not math.isnan(total_cost):  # ✅ Eliminacja `inf`
+                    if total_cost < best_total_cost:
+                        best_total_cost = total_cost
+                        best_split = split
+
+    # 🛠️ **NAPRAWA**: Jeśli `best_total_cost` jest nadal `inf`, ustaw na 0
+    if math.isinf(best_total_cost) or best_total_cost < 0:
+        best_total_cost = 0.0
 
     return best_split, best_total_cost
 
-# **2️⃣ Ręczne dodanie nagłówków CORS w odpowiedzi**
+# ✅ Endpoint API `/calculate`
 @app.post("/calculate")
 async def calculate_discount(products: list[Product]):
     if len(products) < 2:
