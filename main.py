@@ -6,10 +6,10 @@ import math
 
 app = FastAPI()
 
-# Konfiguracja CORS (zezwalamy na żądania z dowolnej domeny)
+# ✅ **POPRAWKA: Zezwalamy na połączenia z GitHub Pages**
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Można zmienić na konkretną domenę frontendu
+    allow_origins=["*"],  # Możesz tu dodać np. ["https://ambasadorostrow.github.io"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,7 +27,7 @@ discounts = {2: 0.30, 3: 0.55, 4: 0.80, 5: 0.99}
 # Funkcja do obliczania kosztu zamówienia
 def calculate_order_price(order):
     if len(order) < 2:
-        return sum(p.discount_price for p in order)  
+        return sum(p.discount_price for p in order)
 
     min_price_regular = min(p.regular_price for p in order)
     discount = discounts.get(len(order), 0)
